@@ -4,15 +4,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.js": { "maxDuration": 30 }
-  },
-  "rewrites": [
-    {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
     "api/index.js": {
       "maxDuration": 30
     }
@@ -22,8 +13,5 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ]
-}
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
