@@ -1,15 +1,49 @@
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { adminMiddleware } from '../middleware/adminMiddleware.js';
 import { sendSuccess, sendError } from '../utils/apiResponse.js';
+import { uploadImageToCloudinary } from '../config/cloudinary.js';
 
 const router = Router();
 
 router.use(authMiddleware, adminMiddleware);
 
+const generateBlogImage = async (apiKey, topic, title) => {
+  const imagePrompt = [
+    `Create a polished editorial hero image for a technology blog about "${title}".`,
+    `The article topic is: ${topic}.`,
+    'Use a clear visual metaphor relevant to the topic, professional editorial photography or illustration, landscape composition.',
+    'Do not include words, letters, logos, watermarks, or UI text.',
+  ].join(' ');
+
+  const openai = new OpenAI({ apiKey });
+  const response = await openai.images.generate({
+    model: 'gpt-image-1',
+    prompt: imagePrompt,
+    size: '1536x1024',
+    quality: 'low',
+    output_format: 'jpeg',
+    output_compression: 85,
+  });
+
+  const imageData = response.data?.[0]?.b64_json;
+  if (!imageData) {
+    throw new Error('OpenAI image generation returned no image data.');
+  }
+
+  const imageBuffer = Buffer.from(imageData, 'base64');
+  if (!imageBuffer.length || imageBuffer.length > 5 * 1024 * 1024) {
+    throw new Error('OpenAI image output was empty or exceeded the 5 MB upload limit.');
+  }
+
+  return uploadImageToCloudinary(imageBuffer);
+};
+
 // POST /api/admin/blogs/generate-ai
 router.post('/generate-ai', async (req, res) => {
+  let generatedBlog;
   try {
     const { topic, keywords } = req.body;
 
@@ -170,8 +204,7 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       );
     }
 
-    // Return actual AI-generated content
-    return sendSuccess(res, {
+    generatedBlog = {
       title: parsed.title,
       content: parsed.content,
       tags:
@@ -180,20 +213,42 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       conclusion:
         parsed.conclusion ||
         'This article highlights the key concepts and practical importance of the topic.',
+    };
+
+    const openAiApiKey = process.env.OPENAI_API_KEY;
+    if (!openAiApiKey) {
+      console.error('[AI Blog Generation Error] OPENAI_API_KEY is missing');
+
+      return sendError(
+        res,
+        'OPENAI_API_KEY is not configured on the backend.',
+        500,
+        { data: generatedBlog }
+      );
+    }
+
+    const image = await generateBlogImage(
+      openAiApiKey,
+      topic.trim(),
+      generatedBlog.title
+    );
+
+    return sendSuccess(res, {
+      ...generatedBlog,
+      image_url: image.image_url,
+      image_public_id: image.image_public_id,
     });
 
   } catch (error) {
-    console.error('[AI Blog Generation Error]:', error);
+    console.error('[AI Blog Generation Error]:', error?.message || error);
 
-    // IMPORTANT:
-    // Do not return fake/generated fallback content.
-    // Return the real error so we can identify the problem.
     return sendError(
       res,
-      `AI generation failed: ${
-        error.message || 'Unknown error'
-      }`,
-      502
+      generatedBlog
+        ? `Blog text was generated, but the OpenAI image could not be generated or uploaded to Cloudinary: ${error.message || 'Unknown error'}`
+        : `AI generation failed: ${error.message || 'Unknown error'}`,
+      502,
+      generatedBlog ? { data: generatedBlog } : {}
     );
   }
 });

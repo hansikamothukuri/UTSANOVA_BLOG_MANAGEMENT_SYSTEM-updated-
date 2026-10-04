@@ -223,6 +223,14 @@ export const query = async (sql, params = []) => {
   const data = getFallbackData();
   const trimmed = sql.trim();
 
+  if (/SELECT\s+MAX\(CAST\(blog_id\s+AS\s+UNSIGNED\)\)\s+AS\s+maxBlogId\s+FROM\s+blogs/i.test(trimmed)) {
+    const maxBlogId = data.blogs.reduce((max, blog) => {
+      const id = Number.parseInt(blog.blog_id || blog.id, 10);
+      return Number.isFinite(id) ? Math.max(max, id) : max;
+    }, 0);
+    return [[{ maxBlogId }]];
+  }
+
   // 0. Admin blog list (status / search filters + LIMIT/OFFSET) and its matching COUNT.
   // Param order mirrors blogService.getAdminBlogs: [status?], [term, term, term]?, [limit, offset]?
   if (/FROM\s+blogs\s+WHERE\s+1\s*=\s*1/i.test(trimmed)) {
@@ -433,15 +441,17 @@ export const query = async (sql, params = []) => {
 
   // 8. INSERT INTO blogs
   if (/INSERT\s+INTO\s+blogs/i.test(trimmed)) {
-    const [blogId, title, content, tags, conclusion, status, scheduledAt] = params;
+    const [blogId, title, content, tags, conclusion, imageUrl, imagePublicId, status, scheduledAt] = params;
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const newBlog = {
       id: data.nextBlogId++,
-      blog_id: blogId || String(data.nextBlogId).padStart(4, '0'),
+      blog_id: blogId,
       title,
       content,
       tags,
       conclusion,
+      image_url: imageUrl,
+      image_public_id: imagePublicId,
       status: status || 'Draft',
       scheduled_at: status === 'Scheduled' ? scheduledAt || null : null,
       created_at: now,
@@ -480,15 +490,17 @@ export const query = async (sql, params = []) => {
     }
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    // If updating full fields: [title, content, tags, conclusion, status, scheduled_at, id]
-    if (params.length >= 7) {
-      const [title, content, tags, conclusion, status, scheduledAt] = params;
+    // Full blog update: content fields, image metadata, status, schedule, and primary key.
+    if (params.length >= 9) {
+      const [title, content, tags, conclusion, imageUrl, imagePublicId, status, scheduledAt] = params;
       data.blogs[blogIndex] = {
         ...data.blogs[blogIndex],
         title,
         content,
         tags,
         conclusion,
+        image_url: imageUrl,
+        image_public_id: imagePublicId,
         status,
         scheduled_at: status === 'Scheduled' ? scheduledAt || null : null,
         updated_at: now,

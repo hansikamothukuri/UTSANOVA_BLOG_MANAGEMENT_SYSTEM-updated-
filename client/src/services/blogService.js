@@ -1,6 +1,24 @@
 import api from './api.js';
 
 export const blogService = {
+  async saveBlog(url, data, method) {
+    const { image_file: imageFile, ...blogData } = data;
+    if (!imageFile) {
+      return api[method](url, blogData);
+    }
+
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(blogData)) {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    }
+    formData.append('image', imageFile);
+    return api[method](url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   // Public blog endpoints
   // Returns { blogs: [...], pagination: { currentPage, limit, totalBlogs, totalPages } }
   async getPublishedBlogs({ search = '', tag = '', page = 1, limit = 9 } = {}) {
@@ -37,13 +55,11 @@ export const blogService = {
   },
 
   async createBlog(data) {
-    const response = await api.post('/admin/blogs', data);
-    return response.data;
+    return this.saveBlog('/admin/blogs', data, 'post');
   },
 
   async updateBlog(id, data) {
-    const response = await api.put(`/admin/blogs/${id}`, data);
-    return response.data;
+    return this.saveBlog(`/admin/blogs/${id}`, data, 'put');
   },
 
   async deleteBlog(id) {

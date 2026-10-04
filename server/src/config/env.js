@@ -36,5 +36,6 @@ console.log(
       mask('DATABASE_HOST'),
       mask('FIREBASE_ADMIN_PRIVATE_KEY'),
       mask('GEMINI_API_KEY'),
+      mask('OPENAI_API_KEY'),
     ].join(' | ')
 );

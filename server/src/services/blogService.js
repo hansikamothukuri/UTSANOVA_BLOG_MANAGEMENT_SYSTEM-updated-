@@ -142,7 +142,16 @@ export const blogService = {
   /**
    * Admin: Creates a new blog
    */
-  async createBlog({ title, content, tags, conclusion, status, scheduled_at = null }) {
+  async createBlog({
+    title,
+    content,
+    tags,
+    conclusion,
+    status,
+    scheduled_at = null,
+    image_url = null,
+    image_public_id = null,
+  }) {
     const normalizedScheduledAt = status === 'Scheduled'
       ? normalizeScheduledAtValue(status, scheduled_at)
       : null;
@@ -152,13 +161,15 @@ export const blogService = {
     const blogId = String(maxBlogId + 1).padStart(4, '0');
 
     const sql =
-      'INSERT INTO blogs (blog_id, title, content, tags, conclusion, status, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
+      'INSERT INTO blogs (blog_id, title, content, tags, conclusion, image_url, image_public_id, status, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
     const params = [
       blogId,
       title.trim(),
       content.trim(),
       tags.trim(),
       conclusion.trim(),
+      image_url,
+      image_public_id,
       status,
       normalizedScheduledAt,
     ];
@@ -175,7 +186,10 @@ export const blogService = {
   /**
    * Admin: Updates an existing blog
    */
-  async updateBlog(id, { title, content, tags, conclusion, status, scheduled_at = null }) {
+  async updateBlog(
+    id,
+    { title, content, tags, conclusion, status, scheduled_at = null, image_url, image_public_id }
+  ) {
     const existing = await this.getBlogById(id);
     if (!existing) {
       return null;
@@ -186,17 +200,22 @@ export const blogService = {
     const updatedTags = tags !== undefined ? tags.trim() : existing.tags;
     const updatedConclusion = conclusion !== undefined ? conclusion.trim() : existing.conclusion;
     const updatedStatus = status !== undefined ? status : existing.status;
+    const updatedImageUrl = image_url !== undefined ? image_url : existing.image_url ?? null;
+    const updatedImagePublicId =
+      image_public_id !== undefined ? image_public_id : existing.image_public_id ?? null;
     const updatedScheduledAt = updatedStatus === 'Scheduled'
       ? normalizeScheduledAtValue(updatedStatus, scheduled_at ?? existing.scheduled_at ?? '')
       : null;
 
     const sql =
-      'UPDATE blogs SET title = ?, content = ?, tags = ?, conclusion = ?, status = ?, scheduled_at = ? WHERE id = ?';
+      'UPDATE blogs SET title = ?, content = ?, tags = ?, conclusion = ?, image_url = ?, image_public_id = ?, status = ?, scheduled_at = ? WHERE id = ?';
     const params = [
       updatedTitle,
       updatedContent,
       updatedTags,
       updatedConclusion,
+      updatedImageUrl,
+      updatedImagePublicId,
       updatedStatus,
       updatedScheduledAt,
       id,

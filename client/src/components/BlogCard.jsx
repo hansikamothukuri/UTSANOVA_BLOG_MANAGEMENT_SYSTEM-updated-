@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, Clock, ArrowRight } from 'lucide-react';
 import TagBadge from './TagBadge.jsx';
 import { formatDate, getExcerpt, calculateReadTime } from '../utils/formatDate.js';
+import { formatBlogId } from '../utils/formatBlogId.js';
 
 export const BlogCard = ({ blog, onTagClick }) => {
   const tagsList = blog.tags
@@ -14,6 +15,14 @@ export const BlogCard = ({ blog, onTagClick }) => {
 
   return (
     <article className="group bg-white rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden">
+      {blog.image_url && (
+        <img
+          src={blog.image_url}
+          alt=""
+          className="w-full aspect-[16/9] object-cover"
+          loading="lazy"
+        />
+      )}
       <div className="p-6">
         {/* Meta Header */}
         <div className="flex items-center gap-3 text-xs text-slate-500 mb-3">
@@ -59,7 +68,7 @@ export const BlogCard = ({ blog, onTagClick }) => {
           Read Full Article
           <ArrowRight className="w-4 h-4" />
         </Link>
-        <span className="text-xs text-slate-400 font-mono">#{blog.id}</span>
+        <span className="text-xs text-slate-400 font-mono">#{formatBlogId(blog)}</span>
       </div>
     </article>
   );

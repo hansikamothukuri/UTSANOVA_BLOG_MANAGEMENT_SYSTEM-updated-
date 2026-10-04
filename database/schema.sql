@@ -26,10 +26,13 @@ CREATE TABLE IF NOT EXISTS admins (
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS blogs (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  blog_id VARCHAR(10) NOT NULL UNIQUE,
   title VARCHAR(255) NOT NULL,
   content TEXT NOT NULL,
   tags VARCHAR(255) NOT NULL,
   conclusion TEXT NOT NULL,
+  image_url VARCHAR(500) NULL,
+  image_public_id VARCHAR(255) NULL,
   status ENUM('Draft', 'Scheduled', 'Published') NOT NULL DEFAULT 'Draft',
   scheduled_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

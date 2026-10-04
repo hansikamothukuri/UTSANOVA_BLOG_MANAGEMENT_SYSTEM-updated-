@@ -18,6 +18,7 @@ import ConfirmModal from '../../components/ConfirmModal.jsx';
 import { formatDate } from '../../utils/formatDate.js';
 import TagBadge from '../../components/TagBadge.jsx';
 import Pagination from '../../components/Pagination.jsx';
+import { formatBlogId } from '../../utils/formatBlogId.js';
 
 const BLOGS_PER_PAGE = 9;
 
@@ -276,7 +277,7 @@ export const AdminBlogsPage = () => {
                 {blogs.map((blog) => (
                   <tr key={blog.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                      #{blog.id}
+                      #{formatBlogId(blog)}
                     </td>
 
                     <td className="px-6 py-4 max-w-sm">

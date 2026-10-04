@@ -14,6 +14,7 @@ import TagBadge from '../../components/TagBadge.jsx';
 import { LoadingSpinner } from '../../components/LoadingSpinner.jsx';
 import { formatDate, calculateReadTime } from '../../utils/formatDate.js';
 import MarkdownRenderer from '../../components/MarkdownRenderer.jsx';
+import { formatBlogId } from '../../utils/formatBlogId.js';
 
 export const BlogDetailPage = () => {
   const { id } = useParams();
@@ -156,6 +157,14 @@ export const BlogDetailPage = () => {
         </div>
       </header>
 
+      {blog.image_url && (
+        <img
+          src={blog.image_url}
+          alt=""
+          className="mb-10 w-full max-h-[32rem] rounded-2xl object-cover"
+        />
+      )}
+
       {/* Main Content Body - Rendered from Markdown */}
       <div className="max-w-none mb-12">
         <MarkdownRenderer content={blog.content} />
@@ -180,6 +189,7 @@ export const BlogDetailPage = () => {
 
       {/* Tags / Keywords Section */}
       <footer className="pt-6 border-t border-slate-200">
+        <p className="mb-3 font-mono text-xs text-slate-400">Blog #{formatBlogId(blog)}</p>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 mr-1">
             <Tag className="w-3.5 h-3.5" />

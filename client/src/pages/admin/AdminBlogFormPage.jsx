@@ -18,6 +18,7 @@ import blogService from '../../services/blogService.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.jsx';
 import TagBadge from '../../components/TagBadge.jsx';
 import MarkdownRenderer from '../../components/MarkdownRenderer.jsx';
+import { formatBlogId } from '../../utils/formatBlogId.js';
 
 export const AdminBlogFormPage = () => {
   const { id } = useParams();
@@ -31,8 +32,13 @@ export const AdminBlogFormPage = () => {
     conclusion: '',
     status: 'Draft',
     scheduled_at: '',
+    blog_id: '',
+    image_url: '',
+    image_public_id: '',
   });
 
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [loading, setLoading] = useState(isEditing);
   const [submitting, setSubmitting] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -59,6 +65,9 @@ export const AdminBlogFormPage = () => {
               conclusion: data.conclusion || '',
               status: data.status || 'Draft',
               scheduled_at: formatScheduledDateTime(data.scheduled_at),
+              blog_id: data.blog_id || '',
+              image_url: data.image_url || '',
+              image_public_id: data.image_public_id || '',
             });
           }
         } catch (err) {
@@ -71,6 +80,17 @@ export const AdminBlogFormPage = () => {
       fetchBlog();
     }
   }, [id, isEditing]);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview(formData.image_url);
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile);
+    setImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [imageFile, formData.image_url]);
 
   const formatScheduledDateTime = (value) => {
     if (!value) return '';
@@ -87,7 +107,7 @@ export const AdminBlogFormPage = () => {
     return parsed.toISOString().slice(0, 19).replace('T', ' ');
   };
 
-  const validate = () => {
+  const validate = (status = formData.status) => {
     const errs = {};
     if (!formData.title.trim()) {
       errs.title = 'Title is required';
@@ -109,16 +129,20 @@ export const AdminBlogFormPage = () => {
       errs.conclusion = 'Conclusion summary is required';
     }
 
-    if (!['Draft', 'Scheduled', 'Published'].includes(formData.status)) {
+    if (!['Draft', 'Scheduled', 'Published'].includes(status)) {
       errs.status = "Status must be either 'Draft', 'Scheduled', or 'Published'";
     }
 
-    if (formData.status === 'Scheduled') {
+    if (status === 'Scheduled') {
       if (!formData.scheduled_at) {
         errs.scheduled_at = 'Select a date and time for scheduled publication';
       } else if (Number.isNaN(new Date(formData.scheduled_at).getTime())) {
         errs.scheduled_at = 'Scheduled publish date and time is invalid';
       }
+    }
+
+    if (imageFile && imageFile.size > 5 * 1024 * 1024) {
+      errs.image = 'Image must be 5 MB or smaller';
     }
 
     setErrors(errs);
@@ -131,12 +155,13 @@ export const AdminBlogFormPage = () => {
       ...formData,
       status: targetStatus,
       scheduled_at: targetStatus === 'Scheduled' ? toDatabaseScheduledAt(formData.scheduled_at) : null,
+      image_file: imageFile,
     };
 
     setServerError('');
     setSuccessMessage('');
 
-    if (!validate()) {
+    if (!validate(targetStatus)) {
       return;
     }
 
@@ -164,6 +189,7 @@ export const AdminBlogFormPage = () => {
   // AI Blog Generator Assistant (SRS Page 1 & 6)
   const handleGenerateAi = async () => {
     if (!aiPrompt.trim()) return;
+    setServerError('');
     try {
       setAiGenerating(true);
       const generated = await blogService.generateAiBlog(aiPrompt, aiKeywords);
@@ -174,7 +200,10 @@ export const AdminBlogFormPage = () => {
           content: generated.content || prev.content,
           tags: generated.tags || prev.tags,
           conclusion: generated.conclusion || prev.conclusion,
+          image_url: generated.image_url,
+          image_public_id: generated.image_public_id,
         }));
+        setImageFile(null);
         setAiModalOpen(false);
         setAiPrompt('');
         setAiKeywords('');
@@ -183,7 +212,21 @@ export const AdminBlogFormPage = () => {
       }
     } catch (err) {
       console.error('AI generation error:', err);
-      setServerError('AI generation failed. Please try again.');
+      const partialBlog = err.data?.data;
+      if (partialBlog?.title && partialBlog?.content) {
+        setFormData((prev) => ({
+          ...prev,
+          title: partialBlog.title || prev.title,
+          content: partialBlog.content || prev.content,
+          tags: partialBlog.tags || prev.tags,
+          conclusion: partialBlog.conclusion || prev.conclusion,
+        }));
+        setServerError(
+          `${err.message || 'AI image generation failed.'} The generated text is available; retry AI generation or choose an image manually.`
+        );
+      } else {
+        setServerError(err.message || 'AI generation failed. Please try again.');
+      }
     } finally {
       setAiGenerating(false);
     }
@@ -211,7 +254,9 @@ export const AdminBlogFormPage = () => {
             Back to All Blogs
           </Link>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            {isEditing ? `Edit Blog #${id}` : 'Create New Blog Post'}
+            {isEditing
+              ? `Edit Blog #${formData.blog_id ? formatBlogId(formData) : formatBlogId({ id })}`
+              : 'Create New Blog Post'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {isEditing
@@ -311,6 +356,46 @@ export const AdminBlogFormPage = () => {
               <AlertCircle className="w-3.5 h-3.5" />
               {errors.tags}
             </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            Blog Image
+          </label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={(event) => {
+              const file = event.target.files?.[0] || null;
+              if (file && !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+                setErrors((current) => ({
+                  ...current,
+                  image: 'Upload a JPEG, PNG, WebP, or GIF image.',
+                }));
+                event.target.value = '';
+                return;
+              }
+              setErrors((current) => ({ ...current, image: null }));
+              setImageFile(file);
+            }}
+            className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+          />
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            JPEG, PNG, WebP, or GIF; maximum 5 MB. Images are stored in Cloudinary.
+          </p>
+          {errors.image && (
+            <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {errors.image}
+            </p>
+          )}
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="Blog image preview"
+              className="mt-3 max-h-56 rounded-xl object-contain"
+            />
           )}
         </div>
 

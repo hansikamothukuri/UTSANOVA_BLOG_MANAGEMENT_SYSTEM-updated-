@@ -16,6 +16,7 @@ import blogService from '../../services/blogService.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.jsx';
 import { formatDate } from '../../utils/formatDate.js';
 import TagBadge from '../../components/TagBadge.jsx';
+import { formatBlogId } from '../../utils/formatBlogId.js';
 
 export const AdminDashboardPage = () => {
   const [stats, setStats] = useState(null);
@@ -219,6 +220,9 @@ export const AdminDashboardPage = () => {
                         to={`/admin/blogs/${blog.id}/edit`}
                         className="hover:text-indigo-600 transition-colors"
                       >
+                        <span className="mr-2 font-mono text-xs text-slate-400">
+                          #{formatBlogId(blog)}
+                        </span>
                         {blog.title}
                       </Link>
                     </td>
