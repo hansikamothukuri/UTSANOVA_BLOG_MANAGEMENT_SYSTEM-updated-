@@ -12,6 +12,7 @@ import {
   Loader2,
   Eye,
   Pencil,
+  CalendarClock,
 } from 'lucide-react';
 import blogService from '../../services/blogService.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.jsx';
@@ -29,6 +30,7 @@ export const AdminBlogFormPage = () => {
     tags: '',
     conclusion: '',
     status: 'Draft',
+    scheduled_at: '',
   });
 
   const [loading, setLoading] = useState(isEditing);
@@ -56,6 +58,7 @@ export const AdminBlogFormPage = () => {
               tags: data.tags || '',
               conclusion: data.conclusion || '',
               status: data.status || 'Draft',
+              scheduled_at: formatScheduledDateTime(data.scheduled_at),
             });
           }
         } catch (err) {
@@ -68,6 +71,21 @@ export const AdminBlogFormPage = () => {
       fetchBlog();
     }
   }, [id, isEditing]);
+
+  const formatScheduledDateTime = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    const adjusted = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return adjusted.toISOString().slice(0, 16);
+  };
+
+  const toDatabaseScheduledAt = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 19).replace('T', ' ');
+  };
 
   const validate = () => {
     const errs = {};
@@ -91,8 +109,16 @@ export const AdminBlogFormPage = () => {
       errs.conclusion = 'Conclusion summary is required';
     }
 
-    if (!['Draft', 'Published'].includes(formData.status)) {
-      errs.status = "Status must be either 'Draft' or 'Published'";
+    if (!['Draft', 'Scheduled', 'Published'].includes(formData.status)) {
+      errs.status = "Status must be either 'Draft', 'Scheduled', or 'Published'";
+    }
+
+    if (formData.status === 'Scheduled') {
+      if (!formData.scheduled_at) {
+        errs.scheduled_at = 'Select a date and time for scheduled publication';
+      } else if (Number.isNaN(new Date(formData.scheduled_at).getTime())) {
+        errs.scheduled_at = 'Scheduled publish date and time is invalid';
+      }
     }
 
     setErrors(errs);
@@ -104,6 +130,7 @@ export const AdminBlogFormPage = () => {
     const submissionPayload = {
       ...formData,
       status: targetStatus,
+      scheduled_at: targetStatus === 'Scheduled' ? toDatabaseScheduledAt(formData.scheduled_at) : null,
     };
 
     setServerError('');
@@ -400,14 +427,20 @@ export const AdminBlogFormPage = () => {
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
             Publication Status
           </label>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 name="status"
                 value="Draft"
                 checked={formData.status === 'Draft'}
-                onChange={() => setFormData({ ...formData, status: 'Draft' })}
+                onChange={() =>
+                  setFormData({
+                    ...formData,
+                    status: 'Draft',
+                    scheduled_at: '',
+                  })
+                }
                 className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
               />
               <span className="text-sm font-medium text-slate-700">
@@ -419,9 +452,35 @@ export const AdminBlogFormPage = () => {
               <input
                 type="radio"
                 name="status"
+                value="Scheduled"
+                checked={formData.status === 'Scheduled'}
+                onChange={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    status: 'Scheduled',
+                    scheduled_at: prev.scheduled_at || '',
+                  }))
+                }
+                className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+              />
+              <span className="text-sm font-medium text-slate-700">
+                Scheduled <span className="text-xs text-slate-400">(Publishes automatically on a chosen future date)</span>
+              </span>
+            </label>
+
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="status"
                 value="Published"
                 checked={formData.status === 'Published'}
-                onChange={() => setFormData({ ...formData, status: 'Published' })}
+                onChange={() =>
+                  setFormData({
+                    ...formData,
+                    status: 'Published',
+                    scheduled_at: '',
+                  })
+                }
                 className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
               />
               <span className="text-sm font-medium text-slate-700">
@@ -429,6 +488,35 @@ export const AdminBlogFormPage = () => {
               </span>
             </label>
           </div>
+
+          {formData.status === 'Scheduled' && (
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Schedule publish date & time
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.scheduled_at}
+                onChange={(e) => {
+                  setFormData({ ...formData, scheduled_at: e.target.value });
+                  if (errors.scheduled_at) {
+                    setErrors({ ...errors, scheduled_at: null });
+                  }
+                }}
+                className={`w-full px-4 py-3 bg-slate-50 border rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:bg-white transition-all ${
+                  errors.scheduled_at
+                    ? 'border-red-300 focus:ring-red-400'
+                    : 'border-slate-200 focus:ring-indigo-500'
+                }`}
+              />
+              {errors.scheduled_at && (
+                <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {errors.scheduled_at}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -451,6 +539,17 @@ export const AdminBlogFormPage = () => {
             >
               <Save className="w-3.5 h-3.5" />
               Save as Draft
+            </button>
+
+            {/* Schedule publish */}
+            <button
+              type="button"
+              disabled={submitting || formData.status !== 'Scheduled'}
+              onClick={() => handleSubmit('Scheduled')}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200 text-xs font-bold rounded-xl transition-all shadow-xs disabled:opacity-50"
+            >
+              <CalendarClock className="w-3.5 h-3.5" />
+              Schedule Publish
             </button>
 
             {/* Publish or Update */}

@@ -36,6 +36,7 @@ const DEFAULT_FALLBACK_STATE = {
       conclusion:
         'Embracing emerging technologies is no longer optional for academic institutions. By blending real-world software practices with pedagogy, we prepare the next generation of engineers for long-term career success.',
       status: 'Published',
+      scheduled_at: null,
       created_at: '2026-09-15 10:30:00',
       updated_at: '2026-09-15 10:30:00',
     },
@@ -48,6 +49,7 @@ const DEFAULT_FALLBACK_STATE = {
       conclusion:
         'Modern tooling empowers teams to spend less time configuring boilerplate and more time delivering tangible value to end users.',
       status: 'Published',
+      scheduled_at: null,
       created_at: '2026-09-18 14:15:00',
       updated_at: '2026-09-18 14:15:00',
     },
@@ -60,6 +62,7 @@ const DEFAULT_FALLBACK_STATE = {
       conclusion:
         'Consistency, deep curiosity, and building verified production-grade projects are the true catalysts for long-term career growth in technology.',
       status: 'Published',
+      scheduled_at: null,
       created_at: '2026-09-20 09:00:00',
       updated_at: '2026-09-20 09:00:00',
     },
@@ -72,6 +75,7 @@ const DEFAULT_FALLBACK_STATE = {
       conclusion:
         'A well-architected relational model pays compounding dividends throughout the entire product lifecycle.',
       status: 'Published',
+      scheduled_at: null,
       created_at: '2026-09-22 16:45:00',
       updated_at: '2026-09-22 16:45:00',
     },
@@ -84,6 +88,7 @@ const DEFAULT_FALLBACK_STATE = {
       conclusion:
         'Review scheduled for next engineering sprint before public release.',
       status: 'Draft',
+      scheduled_at: null,
       created_at: '2026-09-24 11:20:00',
       updated_at: '2026-09-24 11:20:00',
     },
@@ -428,15 +433,17 @@ export const query = async (sql, params = []) => {
 
   // 8. INSERT INTO blogs
   if (/INSERT\s+INTO\s+blogs/i.test(trimmed)) {
-    const [title, content, tags, conclusion, status] = params;
+    const [blogId, title, content, tags, conclusion, status, scheduledAt] = params;
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const newBlog = {
       id: data.nextBlogId++,
+      blog_id: blogId || String(data.nextBlogId).padStart(4, '0'),
       title,
       content,
       tags,
       conclusion,
       status: status || 'Draft',
+      scheduled_at: status === 'Scheduled' ? scheduledAt || null : null,
       created_at: now,
       updated_at: now,
     };
@@ -447,6 +454,25 @@ export const query = async (sql, params = []) => {
 
   // 9. UPDATE blogs SET ... WHERE id = ?
   if (/UPDATE\s+blogs\s+SET/i.test(trimmed)) {
+    if (/status\s*=\s*['"]Published['"]\s*,\s*scheduled_at\s*=\s*NULL/i.test(trimmed)) {
+      let updatedCount = 0;
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      for (const blog of data.blogs) {
+        if (
+          blog.status === 'Scheduled' &&
+          blog.scheduled_at &&
+          new Date(blog.scheduled_at).getTime() <= new Date().getTime()
+        ) {
+          blog.status = 'Published';
+          blog.scheduled_at = null;
+          blog.updated_at = now;
+          updatedCount += 1;
+        }
+      }
+      saveFallbackData(data);
+      return [{ affectedRows: updatedCount }];
+    }
+
     const id = Number(params[params.length - 1]);
     const blogIndex = data.blogs.findIndex((b) => Number(b.id) === id);
     if (blogIndex === -1) {
@@ -454,9 +480,9 @@ export const query = async (sql, params = []) => {
     }
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    // If updating full fields: [title, content, tags, conclusion, status, id]
-    if (params.length >= 6) {
-      const [title, content, tags, conclusion, status] = params;
+    // If updating full fields: [title, content, tags, conclusion, status, scheduled_at, id]
+    if (params.length >= 7) {
+      const [title, content, tags, conclusion, status, scheduledAt] = params;
       data.blogs[blogIndex] = {
         ...data.blogs[blogIndex],
         title,
@@ -464,6 +490,7 @@ export const query = async (sql, params = []) => {
         tags,
         conclusion,
         status,
+        scheduled_at: status === 'Scheduled' ? scheduledAt || null : null,
         updated_at: now,
       };
     } else if (params.length === 2) {

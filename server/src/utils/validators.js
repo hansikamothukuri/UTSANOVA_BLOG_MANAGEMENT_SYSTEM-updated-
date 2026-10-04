@@ -2,9 +2,28 @@
  * Input validation helpers for Utsanova Blog Management System
  */
 
+export const VALID_BLOG_STATUSES = ['Draft', 'Scheduled', 'Published'];
+
+export const normalizeScheduledAtValue = (status, scheduledAtInput) => {
+  if (status !== 'Scheduled') {
+    return null;
+  }
+
+  if (!scheduledAtInput || typeof scheduledAtInput !== 'string' || !scheduledAtInput.trim()) {
+    throw new Error('Scheduled blogs require a valid scheduled publish date and time.');
+  }
+
+  const parsedDate = new Date(scheduledAtInput);
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new Error('Scheduled publish date and time is invalid.');
+  }
+
+  return parsedDate.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 export const validateBlogInput = (data) => {
   const errors = [];
-  const { title, content, tags, conclusion, status } = data;
+  const { title, content, tags, conclusion, status, scheduled_at } = data;
 
   if (!title || typeof title !== 'string' || title.trim().length === 0) {
     errors.push('Title is required');
@@ -26,8 +45,19 @@ export const validateBlogInput = (data) => {
     errors.push('Blog conclusion is required');
   }
 
-  if (!status || !['Draft', 'Published'].includes(status)) {
-    errors.push("Status must be either 'Draft' or 'Published'");
+  if (!status || !VALID_BLOG_STATUSES.includes(status)) {
+    errors.push("Status must be one of 'Draft', 'Scheduled', or 'Published'");
+  }
+
+  if (status === 'Scheduled') {
+    if (!scheduled_at || typeof scheduled_at !== 'string' || !scheduled_at.trim()) {
+      errors.push('A scheduled publish date and time is required when the status is Scheduled.');
+    } else {
+      const candidate = new Date(scheduled_at);
+      if (Number.isNaN(candidate.getTime())) {
+        errors.push('Scheduled publish date and time must be a valid date/time value.');
+      }
+    }
   }
 
   return {

@@ -8,6 +8,7 @@ import adminBlogRoutes from './routes/adminBlogRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import cronRoutes from './routes/cronRoutes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -39,6 +40,7 @@ app.get('/api/health', (req, res) => {
 // Mount Routes according to SRS specification
 app.use('/api/auth', authRoutes);
 app.use('/api/blogs', publicBlogRoutes);
+app.use('/api/cron', cronRoutes);
 app.use('/api/admin/blogs', adminBlogRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/ai', aiRoutes);

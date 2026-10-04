@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import { normalizeScheduledAtValue, VALID_BLOG_STATUSES } from '../utils/validators.js';
 
 export const blogService = {
   /**
@@ -60,7 +61,7 @@ export const blogService = {
     let sql = 'SELECT * FROM blogs';
     const params = [];
 
-    if (status && ['Draft', 'Published'].includes(status)) {
+    if (status && VALID_BLOG_STATUSES.includes(status)) {
       sql += ' WHERE status = ?';
       params.push(status);
     }
@@ -72,7 +73,7 @@ export const blogService = {
   },
 
   /**
-   * Admin: Retrieves blogs (drafts + published) with optional status filter and
+   * Admin: Retrieves blogs (drafts + published + scheduled) with optional status filter and
    * search (title / content / tags), paginated at the database level using
    * LIMIT/OFFSET plus a separate COUNT(*) for the total.
    * An out-of-range page is clamped to the last valid page, so e.g. deleting the
@@ -82,7 +83,7 @@ export const blogService = {
     let where = ' WHERE 1=1';
     const params = [];
 
-    if (status && ['Draft', 'Published'].includes(status)) {
+    if (status && VALID_BLOG_STATUSES.includes(status)) {
       where += ' AND status = ?';
       params.push(status);
     }
@@ -125,12 +126,42 @@ export const blogService = {
   },
 
   /**
+   * Publish all blogs whose scheduled time has already arrived.
+   */
+  async publishScheduledBlogs() {
+    const sql = `UPDATE blogs
+      SET status = 'Published', scheduled_at = NULL
+      WHERE status = 'Scheduled'
+      AND scheduled_at IS NOT NULL
+      AND scheduled_at <= NOW()`;
+
+    const [result] = await db.query(sql);
+    return Number(result?.affectedRows || 0);
+  },
+
+  /**
    * Admin: Creates a new blog
    */
-  async createBlog({ title, content, tags, conclusion, status }) {
+  async createBlog({ title, content, tags, conclusion, status, scheduled_at = null }) {
+    const normalizedScheduledAt = status === 'Scheduled'
+      ? normalizeScheduledAtValue(status, scheduled_at)
+      : null;
+
+    const [maxRows] = await db.query('SELECT MAX(CAST(blog_id AS UNSIGNED)) AS maxBlogId FROM blogs');
+    const maxBlogId = Number(maxRows[0]?.maxBlogId || 0);
+    const blogId = String(maxBlogId + 1).padStart(4, '0');
+
     const sql =
-      'INSERT INTO blogs (title, content, tags, conclusion, status) VALUES (?, ?, ?, ?, ?)';
-    const params = [title.trim(), content.trim(), tags.trim(), conclusion.trim(), status];
+      'INSERT INTO blogs (blog_id, title, content, tags, conclusion, status, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
+    const params = [
+      blogId,
+      title.trim(),
+      content.trim(),
+      tags.trim(),
+      conclusion.trim(),
+      status,
+      normalizedScheduledAt,
+    ];
 
     const [result] = await db.query(sql, params);
     const insertId = result.insertId || result[0]?.insertId;
@@ -144,7 +175,7 @@ export const blogService = {
   /**
    * Admin: Updates an existing blog
    */
-  async updateBlog(id, { title, content, tags, conclusion, status }) {
+  async updateBlog(id, { title, content, tags, conclusion, status, scheduled_at = null }) {
     const existing = await this.getBlogById(id);
     if (!existing) {
       return null;
@@ -155,10 +186,21 @@ export const blogService = {
     const updatedTags = tags !== undefined ? tags.trim() : existing.tags;
     const updatedConclusion = conclusion !== undefined ? conclusion.trim() : existing.conclusion;
     const updatedStatus = status !== undefined ? status : existing.status;
+    const updatedScheduledAt = updatedStatus === 'Scheduled'
+      ? normalizeScheduledAtValue(updatedStatus, scheduled_at ?? existing.scheduled_at ?? '')
+      : null;
 
     const sql =
-      'UPDATE blogs SET title = ?, content = ?, tags = ?, conclusion = ?, status = ? WHERE id = ?';
-    const params = [updatedTitle, updatedContent, updatedTags, updatedConclusion, updatedStatus, id];
+      'UPDATE blogs SET title = ?, content = ?, tags = ?, conclusion = ?, status = ?, scheduled_at = ? WHERE id = ?';
+    const params = [
+      updatedTitle,
+      updatedContent,
+      updatedTags,
+      updatedConclusion,
+      updatedStatus,
+      updatedScheduledAt,
+      id,
+    ];
 
     await db.query(sql, params);
     return await this.getBlogById(id);
@@ -189,6 +231,9 @@ export const blogService = {
     const [draftRows] = await db.query(
       "SELECT COUNT(*) AS drafts FROM blogs WHERE status = 'Draft'"
     );
+    const [scheduledRows] = await db.query(
+      "SELECT COUNT(*) AS scheduled FROM blogs WHERE status = 'Scheduled'"
+    );
     const [recentRows] = await db.query(
       'SELECT * FROM blogs ORDER BY created_at DESC LIMIT 6'
     );
@@ -196,11 +241,13 @@ export const blogService = {
     const totalBlogs = Number(totalRows[0]?.total || 0);
     const publishedBlogs = Number(publishedRows[0]?.published || 0);
     const draftBlogs = Number(draftRows[0]?.drafts || 0);
+    const scheduledBlogs = Number(scheduledRows[0]?.scheduled || 0);
 
     return {
       totalBlogs,
       publishedBlogs,
       draftBlogs,
+      scheduledBlogs,
       recentBlogs: recentRows || [],
       dbStatus: db.getDBStatus(),
     };

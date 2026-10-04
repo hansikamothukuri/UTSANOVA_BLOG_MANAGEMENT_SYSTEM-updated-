@@ -30,10 +30,12 @@ CREATE TABLE IF NOT EXISTS blogs (
   content TEXT NOT NULL,
   tags VARCHAR(255) NOT NULL,
   conclusion TEXT NOT NULL,
-  status ENUM('Draft', 'Published') NOT NULL DEFAULT 'Draft',
+  status ENUM('Draft', 'Scheduled', 'Published') NOT NULL DEFAULT 'Draft',
+  scheduled_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_blogs_status (status),
+  INDEX idx_blogs_scheduled (status, scheduled_at),
   INDEX idx_blogs_created_at (created_at),
   FULLTEXT INDEX idx_blogs_search (title, tags)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

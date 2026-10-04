@@ -86,7 +86,7 @@ export const blogController = {
    */
   async createBlog(req, res, next) {
     try {
-      const { title, content, tags, conclusion, status } = req.body;
+      const { title, content, tags, conclusion, status, scheduled_at } = req.body;
       const cleanTags = sanitizeTags(tags);
 
       const validation = validateBlogInput({
@@ -95,6 +95,7 @@ export const blogController = {
         tags: cleanTags,
         conclusion,
         status,
+        scheduled_at,
       });
 
       if (!validation.isValid) {
@@ -107,6 +108,7 @@ export const blogController = {
         tags: cleanTags,
         conclusion,
         status,
+        scheduled_at: status === 'Scheduled' ? scheduled_at : null,
       });
 
       return sendSuccess(res, newBlog, 201);
@@ -122,7 +124,7 @@ export const blogController = {
   async updateBlog(req, res, next) {
     try {
       const { id } = req.params;
-      const { title, content, tags, conclusion, status } = req.body;
+      const { title, content, tags, conclusion, status, scheduled_at } = req.body;
       const cleanTags = sanitizeTags(tags);
 
       const validation = validateBlogInput({
@@ -131,6 +133,7 @@ export const blogController = {
         tags: cleanTags,
         conclusion,
         status,
+        scheduled_at,
       });
 
       if (!validation.isValid) {
@@ -143,6 +146,7 @@ export const blogController = {
         tags: cleanTags,
         conclusion,
         status,
+        scheduled_at: status === 'Scheduled' ? scheduled_at : null,
       });
 
       if (!updated) {
