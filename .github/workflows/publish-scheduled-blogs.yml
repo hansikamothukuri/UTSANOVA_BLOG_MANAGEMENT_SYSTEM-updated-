@@ -1,0 +1,61 @@
+# Publishes scheduled blogs by calling POST /api/cron/publish-scheduled-blogs.
+#
+# SAFE BY DEFAULT: the recurring `schedule:` trigger below is COMMENTED OUT. Until you enable it,
+# the job only runs when started manually (Actions tab > "Publish scheduled blogs" > Run workflow).
+#
+# Required repository secrets (Settings > Secrets and variables > Actions) - values are never stored here:
+#   CRON_SECRET  the same value as the CRON_SECRET environment variable of the deployment
+#   APP_URL      base URL of the deployed site, no trailing slash, e.g. https://your-site.example.com
+name: Publish scheduled blogs
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (report what WOULD be published, change nothing)'
+        type: boolean
+        default: true
+
+  # ---- Recurring trigger: DISABLED until you have reviewed the configuration ---------------------
+  # To enable, uncomment the two lines below (GitHub cron is UTC; minimum interval 5 minutes; runs can
+  # be delayed by a few minutes under load). "*/15 * * * *" = every 15 minutes.
+  # schedule:
+  #   - cron: '*/15 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-scheduled-blogs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the publish endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Manual runs use the chosen input. Scheduled runs (once enabled) are LIVE (dry_run=false).
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::Repository secrets APP_URL and CRON_SECRET must be set."
+            exit 1
+          fi
+          echo "dry_run=${DRY_RUN}"
+          status=$(curl --silent --show-error --max-time 60 \
+            --output response.json --write-out '%{http_code}' \
+            --request POST "${APP_URL%/}/api/cron/publish-scheduled-blogs" \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header 'Content-Type: application/json' \
+            --data "{\"dry_run\": ${DRY_RUN}}")
+          echo "HTTP ${status}"
+          cat response.json; echo
+          if [ "${status}" != "200" ]; then
+            echo "::error::Cron endpoint returned HTTP ${status}"
+            exit 1
+          fi
