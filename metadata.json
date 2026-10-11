@@ -1,0 +1,6 @@
+{
+  "name": "Utsanova Blog Management System",
+  "description": "Complete full-stack blog management platform for Utsanova featuring public blog discovery, search, tags, admin dashboard, Firebase authentication, and MySQL database management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

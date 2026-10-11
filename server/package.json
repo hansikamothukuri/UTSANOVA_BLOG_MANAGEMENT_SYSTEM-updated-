@@ -1,0 +1,25 @@
+{
+  "name": "utsanova-blog-server",
+  "version": "1.0.0",
+  "description": "Backend API Server for Utsanova Blog Management System",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "tsx watch src/server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "cloudinary": "^2.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.1.0",
+    "multer": "^2.0.2",
+    "mysql2": "^3.12.0",
+    "sharp": "^0.34.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}
